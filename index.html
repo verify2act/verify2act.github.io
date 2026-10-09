@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verify2Act: Critic-Guided Latent World Models for Verifying Manipulation Plans</title>
+  <meta name="description" content="A VLM proposes manipulation plans, a latent world model imagines them, and a critic verifies them before the robot acts.">
+  <meta property="og:title" content="Verify2Act: Critic-Guided Latent World Models for Verifying Language-Conditioned Manipulation Plans">
+  <meta property="og:description" content="A VLM proposes manipulation plans, a latent world model imagines them, and a critic verifies them before the robot acts.">
+  <meta property="og:image" content="static/videos/bin_cool_v2a.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1><span class="name">Verify2Act</span>: Critic-Guided Latent World Models for Verifying Language-Conditioned Manipulation Plans</h1>
+
+    <div class="authors">
+      <span>Chrisantus Eze</span>
+      <span>Christopher Crick</span>
+    </div>
+    <div class="affils"><span>Oklahoma State University</span></div>
+    <div class="venue">Under review</div>
+
+    <div class="links">
+      <span class="btn off">Paper (coming soon)</span>
+      <a class="btn" href="#video">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Video
+      </a>
+      <a class="btn" href="https://github.com/chrisantuseze/verify2act">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>Code
+      </a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="tldr">A vision-language model proposes candidate plans, a latent world model imagines each one, and a critic checks the imagined outcome against the goal before the robot moves.</p>
+  </div>
+</section>
+
+<section id="video">
+  <div class="wrap">
+    <h2>Overview</h2>
+    <div class="grid one">
+      <div class="frame">
+        <video controls playsinline preload="metadata" poster="static/videos/overview.jpg">
+          <source src="static/videos/overview.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Abstract</h2>
+    <p class="prose">Vision-Language Models (VLMs) can propose multi-step manipulation plans, but they have no grounded model of how a scene will change, and the pixel-level world models that could check those plans are slow and drift over long horizons. We present Verify2Act, a modular verification framework that separates semantic action proposal from latent physical verification. A VLM proposes candidate plans, a latent world model (V2A-WM) imagines each of them in the DINOv2 feature space, and a dual-head critic checks the imagined rollouts for temporal consistency and goal satisfaction before anything is executed. V2A-WM extends recent flow-matching world models with cross-attention action grounding and a causal temporal history window. We deploy the full system on a low-cost robot arm, training the world model and critic only on data generated in a digital twin. Across six language-conditioned tasks, Verify2Act reaches 83.3% task success, compared with 61.7% for a latent world model without our architectural changes, 53.3% for the VLM alone, and 46.7% for a pixel-diffusion world model. It verified every plan it executed and incurred no planning-induced failures: all of its failed episodes were caused by low-level grasp or placement slips. In simulation, Verify2Act obtains the highest five-task chain success on CALVIN among the compared baselines with 30&times; fewer reflective VLM calls than pixel-diffusion verification, and the highest success on cluttered nut assembly.</p>
+
+    <div class="stats">
+      <div class="stat"><b>83.3%</b><span>real-robot task success over six tasks (VLM alone: 53.3%)</span></div>
+      <div class="stat"><b>0</b><span>planning-induced failures: every executed plan was verified</span></div>
+      <div class="stat"><b>30&times;</b><span>fewer reflective VLM calls than pixel-diffusion verification on CALVIN</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Method</h2>
+    <p class="prose">Verify2Act treats the VLM only as a source of candidate plans. Each candidate is rolled out by V2A-WM in the frozen DINOv2 latent space, and a dual-head critic scores the imagined rollout: one head checks that consecutive imagined states are temporally consistent, the other scores the final imagined state against the language goal. Plans that fail are sent back to the VLM for re-planning; only an accepted plan reaches the robot.</p>
+
+    <figure>
+      <img src="static/images/architectural_diagram.png" alt="Verify2Act architecture: a VLM proposes plans, V2A-WM imagines them in latent space, and a dual-head critic accepts or rejects them." loading="lazy">
+      <figcaption><b>Verify2Act overview.</b> Stage 1: a VLM proposes candidate multi-step plans from the camera observation and the language instruction. Stage 2: V2A-WM rolls out each candidate in the frozen DINOv2 latent space. Stage 3: the critic scores each rollout, and rejected plans trigger re-planning.</figcaption>
+    </figure>
+
+    <h3 class="prose">V2A-WM</h3>
+    <p class="prose">V2A-WM builds on the flow-matching cores of DINO-WM and RLA-WM with two changes: <b>cross-attention action grounding</b> between DINOv2 patch features and CLIP tokens, which ties language commands to visual object patches, and a <b>causal temporal history</b> window with validity masks, which preserves visual memory across gripper occlusions.</p>
+
+    <figure class="narrow">
+      <img src="static/images/v2a_wm.png" alt="V2A-WM training and inference diagram." loading="lazy">
+      <figcaption><b>V2A-WM training and inference.</b></figcaption>
+    </figure>
+
+    <h3 class="prose">Sim-to-real through a digital twin</h3>
+    <p class="prose">For the robot, the world model and the critic are trained only on data generated in a digital twin of the workspace (20k episodes). At test time, a real2sim step aligns the camera frame with the twin before the plan is imagined.</p>
+
+    <figure>
+      <img src="static/images/fig_real_pipeline.png" alt="One planning call on the robot, showing the camera frame, the real2sim render, the imagined outcome of each candidate and its goal score." loading="lazy">
+      <figcaption><b>One planning call on the robot</b> (goal: &ldquo;Put the red block to the left of the blue block&rdquo;). After real2sim alignment of the camera frame, V2A-WM imagines each candidate plan and the goal head scores the imagined state. The first candidate is rejected on the basis of its imagined outcome; the second is accepted and executed.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Real-World Execution</h2>
+    <p class="lead prose">A Yahboom DOFBOT with an arm-mounted camera and four colored blocks. Robot footage is sped up 4&times; or 6&times;, as labeled in each clip.</p>
+
+    <div class="grid one">
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/verify.jpg">
+            <source src="static/videos/verify.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4>Rejecting a plan before it runs</h4>
+        <p>Goal: &ldquo;Clear all cool-colored blocks into the bin and leave the yellow block.&rdquo; All three proposed candidates also bin the red block and are rejected by the goal head; the re-planned candidate is accepted.</p>
+      </figure>
+    </div>
+
+    <div class="grid">
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/bin_cool_v2a.jpg">
+            <source src="static/videos/bin_cool_v2a.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag ok">Verify2Act</span>Bin clearing</h4>
+        <p>The verified plan bins green and blue and leaves red and yellow on the table.</p>
+      </figure>
+
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/bin_cool_vlm.jpg">
+            <source src="static/videos/bin_cool_vlm.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag fail">VLM-Only</span>Bin clearing, no verification</h4>
+        <p>The same task without a world model or critic: the first proposed plan is executed and the red block goes into the bin.</p>
+      </figure>
+
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/left_of.jpg">
+            <source src="static/videos/left_of.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag ok">Verify2Act</span>Spatial relation</h4>
+        <p>Goal: &ldquo;Put the red block to the left of the blue block.&rdquo; Plan accepted with goal score 0.99.</p>
+      </figure>
+
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/stack.jpg">
+            <source src="static/videos/stack.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag ok">Verify2Act</span>Stacking</h4>
+        <p>Goal: &ldquo;Stack the blue block on top of the yellow block.&rdquo; Plan accepted with goal score 1.00.</p>
+      </figure>
+    </div>
+
+    <div class="grid one">
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/stack_fail.jpg">
+            <source src="static/videos/stack_fail.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag fail">Failure case</span>Correct plan, failed execution</h4>
+        <p>The plan is correct and verified, but the low-level skill fails to complete the stack. All of Verify2Act's failed episodes were of this kind.</p>
+      </figure>
+    </div>
+
+    <h3 class="prose" style="text-align:center">More rollouts</h3>
+    <p class="lead prose">The bin-clearing task on two other layouts, unedited apart from the speed-up.</p>
+
+    <div class="grid">
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/bin_cool_l1.jpg">
+            <source src="static/videos/bin_cool_l1.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag ok">Verify2Act</span>Bin clearing, second layout</h4>
+        <p>Green and blue are binned; red and yellow stay on the table.</p>
+      </figure>
+
+      <figure class="clip">
+        <div class="frame">
+          <video controls muted loop playsinline preload="none" poster="static/videos/bin_cool_l8.jpg">
+            <source src="static/videos/bin_cool_l8.mp4" type="video/mp4">
+          </video>
+        </div>
+        <h4><span class="tag ok">Verify2Act</span>Bin clearing, third layout</h4>
+        <p>Green and blue are binned; red and yellow stay on the table.</p>
+      </figure>
+    </div>
+
+    <p class="lead prose" style="margin-top:22px;font-size:0.88rem">These demonstrations were filmed without the letter-size sheet used in the paper's evaluation. The planning panels were computed from the recorded camera frames and the plans the VLM proposed during the filmed runs.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Results</h2>
+
+    <h3 class="prose">Real robot</h3>
+    <p class="prose">All methods share the same VLM (GPT-4o), prompts and low-level skills, and differ only in how a proposed plan is verified.</p>
+
+    <div class="table-scroll">
+      <table>
+        <caption>Task success on the robot (%). Avg.: mean over the six tasks, 10 episodes each.</caption>
+        <thead>
+          <tr><th>Method</th><th>Bin-2</th><th>Bin-cool</th><th>Bin-3</th><th>Left-of</th><th>Right-of</th><th>Stack</th><th>Avg.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>VLM-Only</td><td>80</td><td>40</td><td>20</td><td>60</td><td class="best">80</td><td>40</td><td>53.3</td></tr>
+          <tr><td>Diffusion-WM</td><td>80</td><td>40</td><td>0</td><td>40</td><td class="best">80</td><td>40</td><td>46.7</td></tr>
+          <tr><td>RLA-WM</td><td class="best">100</td><td>50</td><td>30</td><td>80</td><td>60</td><td>50</td><td>61.7</td></tr>
+          <tr class="ours"><td>Verify2Act (Ours)</td><td>100</td><td>90</td><td>60</td><td>90</td><td>80</td><td>80</td><td>83.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure>
+      <img src="static/images/fig_real_results.png" alt="Bar charts of task success per task and of episode outcomes per method." loading="lazy">
+      <figcaption><b>Results on the robot.</b> (a) Task success per task and averaged over tasks. (b) Outcome of the episodes of each method: success, execution failure (the plan was correct but a skill failed), or planning failure (the executed plan could not satisfy the goal).</figcaption>
+    </figure>
+
+    <div class="table-scroll">
+      <table>
+        <caption>Planning versus execution on the robot. Plan correct: executed plans that satisfy the goal if all skills succeed. Verified: executed plans accepted by the critic. Top-1: offline plan ranking on 42 real scenes (chance &asymp; 6%). &ldquo;&mdash;&rdquo;: no critic.</caption>
+        <thead>
+          <tr><th></th><th>VLM-Only</th><th>Diffusion-WM</th><th>RLA-WM</th><th>Verify2Act</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Plan correct (%)</td><td>93.3</td><td>93.3</td><td>95.0</td><td class="best">100</td></tr>
+          <tr><td>Planning failures (%)</td><td>6.7</td><td>6.7</td><td>5.0</td><td class="best">0.0</td></tr>
+          <tr><td>Execution failures (%)</td><td>43.3</td><td>46.7</td><td>33.3</td><td class="best">16.7</td></tr>
+          <tr><td>Step success (%)</td><td>69.2</td><td>61.5</td><td>73.0</td><td class="best">82.5</td></tr>
+          <tr class="sep"><td>Verified plans (%)</td><td>&mdash;</td><td>&mdash;</td><td>61.8</td><td class="best">100</td></tr>
+          <tr><td>Top-1, real2sim-aligned (%)</td><td>&mdash;</td><td>&mdash;</td><td>71.4</td><td class="best">97.6</td></tr>
+          <tr><td>Top-1, camera frame (%)</td><td>&mdash;</td><td>&mdash;</td><td>23.8</td><td class="best">71.4</td></tr>
+          <tr class="sep"><td>VLM calls / episode</td><td class="best">1.00</td><td>2.00</td><td>1.84</td><td>1.13</td></tr>
+          <tr><td>Planning time / call (s)</td><td class="best">3.4</td><td>30.0</td><td>28.4</td><td>24.0</td></tr>
+          <tr><td>Episode time (s)</td><td class="best">81</td><td>107</td><td>126</td><td>109</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="prose">Simulation: CALVIN</h3>
+    <div class="table-scroll">
+      <table>
+        <caption>CALVIN ABCD&rarr;D. SR<sub>k</sub>: fraction of sequences completing at least k consecutive subtasks. Avg. Len.: mean subtasks completed (max 5). Refl. Calls: reflective VLM queries triggered by critic rejections. Averaged over 3 seeds.</caption>
+        <thead>
+          <tr><th>Method</th><th>SR<sub>1</sub></th><th>SR<sub>2</sub></th><th>SR<sub>3</sub></th><th>SR<sub>4</sub></th><th>SR<sub>5</sub></th><th>Avg. Len.</th><th>Refl. Calls</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>MCIL</td><td>37.3</td><td>2.7</td><td>0.4</td><td>0.0</td><td>0.0</td><td>0.38</td><td>&mdash;</td></tr>
+          <tr><td>HULC</td><td>88.9</td><td>73.3</td><td>58.7</td><td>47.5</td><td>38.3</td><td>3.06</td><td>&mdash;</td></tr>
+          <tr><td>GR-1</td><td>94.9</td><td>89.6</td><td>84.4</td><td>78.9</td><td>73.1</td><td>4.21</td><td>&mdash;</td></tr>
+          <tr class="sep"><td>VLM-Only (GPT-4o)</td><td class="best">100.0</td><td>96.0</td><td class="best">91.0</td><td>83.0</td><td>70.0</td><td>4.40</td><td>0</td></tr>
+          <tr class="sep"><td>DINO-WM</td><td>97.0</td><td>93.0</td><td>87.0</td><td>76.0</td><td>66.0</td><td>4.19</td><td>0</td></tr>
+          <tr><td>RLA-WM</td><td class="best">100.0</td><td>95.0</td><td>90.0</td><td>81.0</td><td>69.0</td><td>4.35</td><td>16</td></tr>
+          <tr><td>Diffusion-WM</td><td class="best">100.0</td><td>96.0</td><td class="best">91.0</td><td>79.0</td><td>66.0</td><td>4.32</td><td>444</td></tr>
+          <tr class="sep"><td>V2A-WM (AdaLN)</td><td class="best">100.0</td><td>96.0</td><td>89.0</td><td>81.0</td><td>71.0</td><td>4.37</td><td>27</td></tr>
+          <tr><td>V2A-WM (Non-Causal)</td><td>99.0</td><td>94.0</td><td>90.0</td><td class="best">84.0</td><td>73.0</td><td>4.40</td><td>33</td></tr>
+          <tr class="ours"><td>Verify2Act (Ours)</td><td>100.0</td><td>98.0</td><td>88.0</td><td>82.0</td><td>75.0</td><td>4.43</td><td>15</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="prose">Simulation: cluttered nut assembly</h3>
+    <div class="table-scroll">
+      <table>
+        <caption>Cluttered nut assembly (Robosuite). SR: episode success. NCR: nut completion rate. Prec.: critic-accepted plan success. Rej.: critic rejection rate. Repl.: re-plans per episode. Averaged over 3 seeds.</caption>
+        <thead>
+          <tr><th>Method</th><th>SR</th><th>NCR</th><th>Prec.</th><th>Rej.</th><th>Repl.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>VLM-Only (GPT-4o)</td><td>17.0</td><td>37.9</td><td>&mdash;</td><td>&mdash;</td><td>0.0</td></tr>
+          <tr><td>DINO-WM</td><td>20.0</td><td>36.9</td><td>46.6</td><td>9.2</td><td>1.5</td></tr>
+          <tr><td>RLA-WM</td><td>43.0</td><td>67.6</td><td>76.2</td><td>69.8</td><td>17.6</td></tr>
+          <tr><td>Diffusion-WM</td><td>55.0</td><td>69.1</td><td class="best">78.9</td><td>51.8</td><td>9.0</td></tr>
+          <tr class="sep"><td>V2A-WM (AdaLN)</td><td>30.0</td><td>47.3</td><td>55.1</td><td>55.0</td><td>7.1</td></tr>
+          <tr><td>V2A-WM (Non-Causal)</td><td>31.0</td><td>51.1</td><td>58.1</td><td>49.1</td><td>5.4</td></tr>
+          <tr class="ours"><td>Verify2Act (Ours)</td><td>58.0</td><td>70.3</td><td>61.8</td><td>49.0</td><td>10.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Citation</h2>
+    <pre><code>@misc{eze2026verify2act,
+  title  = {Verify2Act: Critic-Guided Latent World Models for Verifying
+            Language-Conditioned Manipulation Plans},
+  author = {Eze, Chrisantus and Crick, Christopher},
+  year   = {2026},
+  note   = {Under review}
+}</code></pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Verify2Act &copy; 2026 &middot; Oklahoma State University</div>
+</footer>
+
+</body>
+</html>
